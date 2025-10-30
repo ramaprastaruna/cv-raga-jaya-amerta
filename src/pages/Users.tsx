@@ -45,8 +45,8 @@ export const Users: React.FC<UsersProps> = ({ onError, onSuccess }) => {
       return;
     }
 
-    if (formData.pin.length < 4) {
-      onError('PIN harus minimal 4 digit');
+    if (formData.pin.length < 4 || formData.pin.length > 6) {
+      onError('PIN harus 4-6 digit');
       return;
     }
 
@@ -58,7 +58,7 @@ export const Users: React.FC<UsersProps> = ({ onError, onSuccess }) => {
       setFormData({ username: '', pin: '' });
       fetchUsers();
     } catch (error: any) {
-      onError(error.message || 'Gagal menambahkan user');
+      onError(error.message || 'Gagal menambahkan user (pastikan PIN unik dan 4-6 digit)');
     } finally {
       setSubmitting(false);
     }
@@ -204,7 +204,7 @@ export const Users: React.FC<UsersProps> = ({ onError, onSuccess }) => {
               const value = e.target.value.replace(/\D/g, '');
               setFormData({ ...formData, pin: value });
             }}
-            placeholder="Masukkan PIN (min. 4 digit)"
+            placeholder="Masukkan PIN (4–6 digit)"
             required
             maxLength={6}
           />

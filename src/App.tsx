@@ -11,7 +11,7 @@ import { Users } from './pages/Users';
 import { Loading } from './components/ui/Loading';
 import { ToastContainer } from './components/ui/Toast';
 import { useToast } from './hooks/useToast';
-import { Product, supabase } from './lib/supabase';
+import { Product } from './lib/supabase';
 
 type Page = 'products' | 'history' | 'reports' | 'customers' | 'createNota' | 'users';
 
@@ -36,6 +36,7 @@ const AppContent: React.FC = () => {
     success(message);
     setNotaItems([]);
     setSavedCart(null);
+    try { localStorage.removeItem('cart'); } catch {}
     setCurrentPage('products');
   };
 

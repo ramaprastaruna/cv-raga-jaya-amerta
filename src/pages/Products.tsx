@@ -21,7 +21,17 @@ export const Products: React.FC<ProductsProps> = ({ onError, onSuccess, onCreate
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [cart, setCart] = useState<Array<{ product: Product; quantity: number; unit: string }>>(initialCart || []);
+  const [cart, setCart] = useState<Array<{ product: Product; quantity: number; unit: string }>>(() => {
+    if (initialCart && initialCart.length > 0) return initialCart;
+    try {
+      const stored = localStorage.getItem('cart');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [showCart, setShowCart] = useState(false);
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [selectedProductForCart, setSelectedProductForCart] = useState<Product | null>(null);
@@ -66,6 +76,10 @@ export const Products: React.FC<ProductsProps> = ({ onError, onSuccess, onCreate
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     filterProducts();
@@ -401,56 +415,23 @@ export const Products: React.FC<ProductsProps> = ({ onError, onSuccess, onCreate
   const addToCartWithUnit = async () => {
     if (!selectedProductForCart || !selectedUnit || quantityToAdd < 1) return;
 
-    const stockEntry = selectedProductForCart.stock_entries?.find(e => e.unit === selectedUnit);
-
-    if (!stockEntry) {
-      onError('Unit tidak ditemukan');
-      return;
-    }
-
-    const updatedStockEntries = selectedProductForCart.stock_entries.map(entry =>
-      entry.unit === selectedUnit
-        ? { ...entry, quantity: entry.quantity - quantityToAdd }
-        : entry
+    const existing = cart.find(
+      (item) => item.product.id === selectedProductForCart.id && item.unit === selectedUnit
     );
 
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          stock_entries: updatedStockEntries
-        })
-        .eq('id', selectedProductForCart.id);
-
-      if (error) throw error;
-
-      const updatedProduct = {
-        ...selectedProductForCart,
-        stock_entries: updatedStockEntries
-      };
-
-      const existing = cart.find(
-        (item) => item.product.id === selectedProductForCart.id && item.unit === selectedUnit
+    if (existing) {
+      setCart(
+        cart.map((item) =>
+          item.product.id === selectedProductForCart.id && item.unit === selectedUnit
+            ? { ...item, quantity: item.quantity + quantityToAdd }
+            : item
+        )
       );
-
-      if (existing) {
-        setCart(
-          cart.map((item) =>
-            item.product.id === selectedProductForCart.id && item.unit === selectedUnit
-              ? { ...item, quantity: item.quantity + quantityToAdd, product: updatedProduct }
-              : item
-          )
-        );
-      } else {
-        setCart([...cart, { product: updatedProduct, quantity: quantityToAdd, unit: selectedUnit }]);
-      }
-
-      await fetchProducts();
-      onSuccess(`${selectedProductForCart.name} (${quantityToAdd} ${selectedUnit}) ditambahkan ke keranjang`);
-    } catch (error) {
-      onError('Gagal menambahkan ke keranjang');
-      return;
+    } else {
+      setCart([...cart, { product: selectedProductForCart, quantity: quantityToAdd, unit: selectedUnit }]);
     }
+
+    onSuccess(`${selectedProductForCart.name} (${quantityToAdd} ${selectedUnit}) ditambahkan ke keranjang`);
 
     setShowUnitModal(false);
     setSelectedProductForCart(null);
@@ -459,30 +440,7 @@ export const Products: React.FC<ProductsProps> = ({ onError, onSuccess, onCreate
   };
 
   const removeFromCart = async (productId: string, unit: string) => {
-    const item = cart.find(i => i.product.id === productId && i.unit === unit);
-    if (!item) return;
-
-    const updatedStockEntries = item.product.stock_entries?.map(entry =>
-      entry.unit === unit
-        ? { ...entry, quantity: entry.quantity + item.quantity }
-        : entry
-    ) || [];
-
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          stock_entries: updatedStockEntries
-        })
-        .eq('id', productId);
-
-      if (error) throw error;
-
-      setCart(cart.filter((item) => !(item.product.id === productId && item.unit === unit)));
-      await fetchProducts();
-    } catch (error) {
-      onError('Gagal menghapus dari keranjang');
-    }
+    setCart(cart.filter((item) => !(item.product.id === productId && item.unit === unit)));
   };
 
   const updateCartQuantity = async (productId: string, unit: string, quantity: number) => {
@@ -494,44 +452,11 @@ export const Products: React.FC<ProductsProps> = ({ onError, onSuccess, onCreate
     const item = cart.find(i => i.product.id === productId && i.unit === unit);
     if (!item) return;
 
-    const quantityDiff = quantity - item.quantity;
-
-    const stockEntry = item.product.stock_entries?.find(e => e.unit === unit);
-    if (!stockEntry) {
-      onError('Unit tidak ditemukan');
-      return;
-    }
-
-    const updatedStockEntries = item.product.stock_entries.map(entry =>
-      entry.unit === unit
-        ? { ...entry, quantity: entry.quantity - quantityDiff }
-        : entry
+    setCart(
+      cart.map((i) =>
+        i.product.id === productId && i.unit === unit ? { ...i, quantity } : i
+      )
     );
-
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          stock_entries: updatedStockEntries
-        })
-        .eq('id', productId);
-
-      if (error) throw error;
-
-      const updatedProduct = {
-        ...item.product,
-        stock_entries: updatedStockEntries
-      };
-
-      setCart(
-        cart.map((item) =>
-          item.product.id === productId && item.unit === unit ? { ...item, quantity, product: updatedProduct } : item
-        )
-      );
-      await fetchProducts();
-    } catch (error) {
-      onError('Gagal mengubah jumlah');
-    }
   };
 
   const handleCreateNota = () => {

@@ -46,6 +46,18 @@ export const getCurrentUser = (): AppUser | null => {
 };
 
 export const createUser = async (username: string, pin: string, createdBy: string): Promise<void> => {
+  // Ensure PIN uniqueness
+  const { data: existing, error: checkErr } = await supabase
+    .from('app_users')
+    .select('id')
+    .eq('pin', pin)
+    .limit(1);
+
+  if (checkErr) throw checkErr;
+  if (existing && existing.length > 0) {
+    throw new Error('PIN sudah digunakan, gunakan PIN lain');
+  }
+
   const { error } = await supabase
     .from('app_users')
     .insert({

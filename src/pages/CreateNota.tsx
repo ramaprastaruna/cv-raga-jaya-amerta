@@ -247,7 +247,33 @@ export const CreateNota: React.FC<CreateNotaProps> = ({
 
       if (itemsError) throw itemsError;
 
+      // Deduct stock only after successful transaction and items insert
+      for (const item of items) {
+        const { data: prod, error: prodErr } = await supabase
+          .from('products')
+          .select('stock_entries')
+          .eq('id', item.product.id)
+          .maybeSingle();
+
+        if (prodErr) throw prodErr;
+
+        const entries = prod?.stock_entries || [];
+        const updatedEntries = entries.map((entry: any) =>
+          entry.unit === item.unit
+            ? { ...entry, quantity: Math.max(0, (entry.quantity || 0) - item.quantity) }
+            : entry
+        );
+
+        const { error: updErr } = await supabase
+          .from('products')
+          .update({ stock_entries: updatedEntries })
+          .eq('id', item.product.id);
+        if (updErr) throw updErr;
+      }
+
       onSuccess(`Nota berhasil dibuat dengan nomor ${transactionNumber}`);
+      // Clear cart after successful nota creation
+      try { localStorage.removeItem('cart'); } catch {}
       onBack();
     } catch (error: any) {
       const errorMessage = error.message?.includes('duplicate key')
