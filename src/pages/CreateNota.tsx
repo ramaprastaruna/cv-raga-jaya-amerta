@@ -251,22 +251,34 @@ export const CreateNota: React.FC<CreateNotaProps> = ({
       for (const item of items) {
         const { data: prod, error: prodErr } = await supabase
           .from('products')
-          .select('stock_entries')
+          .select('stock_entries, stock, stock_unit')
           .eq('id', item.product.id)
           .maybeSingle();
 
         if (prodErr) throw prodErr;
 
         const entries = prod?.stock_entries || [];
-        const updatedEntries = entries.map((entry: any) =>
-          entry.unit === item.unit
-            ? { ...entry, quantity: Math.max(0, (entry.quantity || 0) - item.quantity) }
-            : entry
-        );
+        const hasMatchingEntry = entries.some((entry: any) => entry.unit === item.unit);
+
+        let updatePayload: any = {};
+        if (hasMatchingEntry) {
+          const updatedEntries = entries.map((entry: any) =>
+            entry.unit === item.unit
+              ? { ...entry, quantity: (entry.quantity || 0) - item.quantity }
+              : entry
+          );
+          updatePayload.stock_entries = updatedEntries;
+        } else {
+          const newEntries = [
+            ...entries,
+            { unit: item.unit, quantity: 0 - item.quantity },
+          ];
+          updatePayload.stock_entries = newEntries;
+        }
 
         const { error: updErr } = await supabase
           .from('products')
-          .update({ stock_entries: updatedEntries })
+          .update(updatePayload)
           .eq('id', item.product.id);
         if (updErr) throw updErr;
       }
